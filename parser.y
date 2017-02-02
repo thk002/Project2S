@@ -168,6 +168,62 @@ FunctionParam: FunctionHeader AssignmentExpr
           |   FunctionParam T_Comma AssignmentExpr
           ;
 
+FunctionHeader: FunctionIdentifier T_LeftParen;
+
+FunctionIdentifier: TypeSpecifier
+          |   PostFixExpr
+          ;
+
+UnaryExpr:    PostFixExpr { $$ = $1; }
+          |   T_Inc UnaryExpr
+          |   T_Dec UnaryExpr
+          |   UnaryOp UnaryExpr;
+          ;
+
+MultiExpr:    UnaryExpr
+          |   MultiExpr T_Star MultiExpr
+          |   MultiExpr T_Slash MultiExpr
+          ;
+
+AddExpr:      MultiExpr
+          |   AddExpr T_Plus MultiExpr
+          |   AddExpr T_Dash MultiExpr
+          ;
+
+ShiftExpr:    AddExpr;
+
+RelationalExpr: ShiftExpr
+          |   RelationalExpr T_LeftAngle ShiftExpr
+          |   RelationalExpr T_RightAngle ShiftExpr
+          |   RelationalExpr T_LessEqual ShiftExpr
+          |   RelationalExpr T_GreaterEqual ShiftExpr
+          ;
+
+EqualityExpr: RelationalExpr
+          |   EqualityExpr T_EQ RelationalExpr
+          |   EqualityExpr T_NE RelationalExpr
+          ;
+
+AndExpr:      EqualityExpr;
+
+ExclusiveOr:  AndExpr;
+
+InclusiveOr:  ExclusiveOr;
+
+LogicalAnd:   InclusiveOr;
+          |   LogicalAnd T_And InclusiveOr
+          ;
+
+LogicalXor:   LogicalAnd;
+
+LogicalOr:    LogicalXor
+          |   LogicalOr T_Or LogicalXor
+          ;
+
+ConditionalExpr: LogicalOr
+          |   LogicalOr T_Question Expression T_Colon AssignmentExpr
+
+AssignmentExpr:
 %%
 
 /* The closing %% above marks the end of the Rules section and the beginning

@@ -128,7 +128,7 @@ Decl      :   FunctionDef { }
 
 Declaration:  FunctionProto T_Semicolon {}
            |  SingleDeclaration T_Semicolon
-           |  Type_Qualifier T_Identifier T_Semicolon
+           |  TypeQualifier T_Identifier T_Semicolon
            ;
 
 PrimaryExpr:  T_Identifier { 
@@ -253,8 +253,127 @@ FunctionHeaderParam: FunctionHeader ParamDecl
 
 FunctionHeader:  FullySpecifiedType T_Identifier T_LeftParen;
 
+ParamDecl:  TypeSpecifier T_Identifier
+         |  TypeSpecifier  
+         ;
 
+SingleDeclaration:  FullySpecifiedType 
+                 |  FullySpecifiedType T_Identifier
+                 |  FullySpecifiedType T_Identifier T_LeftBracket T_Const T_RightBracket
+                 |  FullySpecifiedType T_Identifier T_Equal AssignmentExpr
+                 ;
 
+FullySpecifiedType:  TypeSpecifier
+                  |  TypeQualifier TypeSpecifier
+                  ;
+
+TypeQualifier:  SingleTypeQualifier
+             |  TypeQualifier SingleTypeQualifier
+             ;
+
+SingleTypeQualifier:  T_Const
+                   |  T_In
+                   |  T_Out
+                   |  T_Uniform
+                   ;
+
+TypeSpecifier:  TypeSpecifierNonArr
+             |  TypeSpecifierNonArr T_LeftBracket ConditionalExpr T_RightBracket
+             ;
+
+TypeSpecifierNonArr:  T_Void  {$$ = Type::voidType;}
+                   |   T_Bool  {$$ = Type::boolType;}
+                   |   T_Int   {$$ = Type::intType;}
+                   |   T_Float {$$ = Type::floatType;}
+                   |   T_Mat2   {$$ = Type::mat2Type;}
+                   |   T_Mat3   {$$ = Type::mat3Type;}
+                   |   T_Mat4   {$$ = Type::mat4Type;}
+                   |   T_Vec2   {$$ = Type::vec2Type;}
+                   |   T_Vec3   {$$ = Type::vec3Type;}
+                   |   T_Vec4   {$$ = Type::vec4Type;}
+                   |   T_Ivec2   {$$ = Type::ivec2Type;}
+                   |   T_Ivec3   {$$ = Type::ivec3Type;}
+                   |   T_Ivec4   {$$ = Type::ivec4Type;}
+                   |   T_Bvec2   {$$ = Type::bvec2Type;}
+                   |   T_Bvec3   {$$ = Type::bvec3Type;}
+                   |   T_Bvec4   {$$ = Type::bvec4Type;}
+                   |   T_Uint   {$$ = Type::uintType;}
+                   |   T_Uvec2   {$$ = Type::uvec2Type;}
+                   |   T_Uvec3   {$$ = Type::uvec3Type;}
+                   |   T_Uvec4   {$$ = Type::uvec4Type;}
+                   ;     
+
+Statement:  CompoundScope
+         |  SimpleStatement
+         ;
+
+StatementScope:  CompoundNoScope
+              |  SimpleStatement
+              ;
+
+StatementNoScope:  CompoundNoScope
+               |   SimpleStatement
+               ;
+
+SimpleStatement:  Decl
+               |  T_Semicolon AssignmentExpr
+               |  T_Semicolon
+               |  T_If T_LeftParen AssignmentExpr T_RightParen SelectionRestStmt
+               |  T_Switch T_LeftParen AssignmentExpr T_RightParen T_LeftBrace StatementList T_RightBrace
+               |  T_Case AssignmentExpr T_Colon
+               |  T_Default T_Colon
+               |  IterationStmt
+               |  JumpStmt
+               ;
+
+CompoundScope:  T_LeftBrace T_RightBrace
+             |  T_LeftBrace StatementList T_RightBrace
+             ;
+
+CompoundNoScope: T_LeftBrace T_RightBrace
+             |  T_LeftBrace StatementList T_RightBrace
+             ;
+
+StatementList:  Statement
+             |  StatementList Statement
+             ; 
+
+SelectionRestStmt:  StatementScope T_Else StatementScope
+                 |  StatementScope
+                 ;
+Condition:  AssignmentExpr
+         |  FullySpecifiedType T_Identifier T_Equal AssignmentExpr
+         ;
+
+IterationStmt:  T_While T_LeftParen Condition T_RightParen StatementNoScope
+             |  T_Do StatementScope T_While T_LeftParen AssignmentExpr T_RightParen T_Semicolon
+             |  T_For T_LeftParen ForInitStmt ForRestStmt T_RightParen StatementNoScope
+             ;
+
+ForInitStmt:  T_Semicolon AssignmentExpr
+           |  T_Semicolon
+           |  Declaration
+           ;
+
+ForRestStmt:  Condition T_Semicolon
+           |  Condition T_Semicolon AssignmentExpr
+           ;
+
+JumpStmt:  T_Continue T_Semicolon
+        |  T_Break T_Semicolon
+        |  T_Return T_Semicolon
+        |  T_Return AssignmentExpr T_Semicolon
+        ;
+
+TranslationUnit:  ExternalDecl
+               |  TranslationUnit ExternalDecl
+               ;
+
+ExternalDecl:  FunctionDef
+            |  Declaration
+            ;
+
+FunctionDef:  FunctionProto CompoundNoScope;
 %%
 
 /* The closing %% above marks the end of the Rules section and the beginning

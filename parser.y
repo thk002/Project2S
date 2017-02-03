@@ -127,7 +127,9 @@ Decl      :   FunctionDef { }
           ;
 
 Declaration:  FunctionProto T_Semicolon {}
-          ;
+           |  SingleDeclaration T_Semicolon
+           |  Type_Qualifier T_Identifier T_Semicolon
+           ;
 
 PrimaryExpr:  T_Identifier { 
                 $$ = new VarExpr( @1, new Identifier( @1,$1));
@@ -156,33 +158,37 @@ PostFixExpr:  PrimaryExpr {
 
 IntegerExpr:  Expression;
 
-Function  :   FunctionParam T_RightParen
-          |   FunctionNoParam T_RightParen
-          ;
+FunctionCall  :   FunctionCallHeaderParam T_RightParen
+              |   FunctionCallHeaderNoParam T_RightParen
+              ;
 
-FunctionNoParam: FunctionHeader T_Void
-          |   FunctionHeader
-          ;
+FunctionCallHeaderNoParam: FunctionCallHeader T_Void
+                         |   FunctionCallHeader
+                         ;
 
-FunctionParam: FunctionHeader AssignmentExpr
-          |   FunctionParam T_Comma AssignmentExpr
-          ;
+FunctionCallHeaderParam: FunctionCallHeader AssignmentExpr
+                   |   FunctionCallHeaderParam T_Comma AssignmentExpr
+                   ;
 
-FunctionHeader: FunctionIdentifier T_LeftParen;
+FunctionCallHeader: FunctionIdentifier T_LeftParen;
 
 FunctionIdentifier: TypeSpecifier
-          |   PostFixExpr
-          ;
+          	  |   PostFixExpr
+                  ;
 
 UnaryExpr:    PostFixExpr { $$ = $1; }
           |   T_Inc UnaryExpr
           |   T_Dec UnaryExpr
-          |   UnaryOp UnaryExpr;
+          |   UnaryOp UnaryExpr
+          ;
+
+UnaryOp:      T_Plus
+          |   T_Dash
           ;
 
 MultiExpr:    UnaryExpr
-          |   MultiExpr T_Star MultiExpr
-          |   MultiExpr T_Slash MultiExpr
+          |   MultiExpr T_Star UnaryExpr
+          |   MultiExpr T_Slash UnaryExpr
           ;
 
 AddExpr:      MultiExpr
@@ -210,20 +216,45 @@ ExclusiveOr:  AndExpr;
 
 InclusiveOr:  ExclusiveOr;
 
-LogicalAnd:   InclusiveOr;
+LogicalAnd:   InclusiveOr
           |   LogicalAnd T_And InclusiveOr
           ;
 
 LogicalXor:   LogicalAnd;
 
 LogicalOr:    LogicalXor
-          |   LogicalOr T_Or LogicalXor
-          ;
+         |   LogicalOr T_Or LogicalXor
+         ;
 
 ConditionalExpr: LogicalOr
-          |   LogicalOr T_Question Expression T_Colon AssignmentExpr
+               | LogicalOr T_Question Expression T_Colon AssignmentExpr
 
-AssignmentExpr:
+AssignmentExpr:  ConditionalExpr
+              |  UnaryExpr AssignmentOp AssignmentExpr
+              ;
+
+AssignmentOp:  T_Equal
+            |  T_MulAssign
+            |  T_AddAssign
+            |  T_DivAssign
+            |  T_SubAssign
+            ;
+
+FunctionProto:  FunctionDecl T_RightParen
+             ;
+
+FunctionDecl:  FunctionHeader
+            |  FunctionHeaderParam
+            ;
+
+FunctionHeaderParam: FunctionHeader ParamDecl
+                   | FunctionHeaderParam T_Comma ParamDecl
+                   ;
+
+FunctionHeader:  FullySpecifiedType T_Identifier T_LeftParen;
+
+
+
 %%
 
 /* The closing %% above marks the end of the Rules section and the beginning

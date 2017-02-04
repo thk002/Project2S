@@ -49,6 +49,7 @@ void yyerror(const char *msg); // standard error-handling routine
     TypeQualifier * typequalifer;
     Expr * expr;
     Operator *op;
+    Call *call;
 
 }
 
@@ -94,13 +95,15 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <decl>      Decl
 %type <decl>      Declaration
 
+%type <decl>      VarIdentifier 
+
 %type <expr>      PrimaryExpr
 %type <expr>      PostFixExpr
 %type <expr>      IntegerExpr
 
-%type <expr>      FunctionCall
+%type <call>      FunctionCall FunctionCallHeaderNoParam FunctionCallHeaderParam
 
-%type <decl>      FunctionDef
+%type <>      FunctionDef
 
 
 
@@ -129,7 +132,7 @@ DeclList  :    DeclList Decl        { ($$=$1)->Append($2); }
 
 Decl      :   FunctionDef { }
           |   Declaration {
-                $$ = new vardecl($1, currtype);
+                $$ = new vardecl($1);
               }
           ;
 
@@ -145,13 +148,13 @@ PrimaryExpr:  T_Identifier {
                 $$ = new VarExpr( @1, new Identifier( @1,$1));
           }
           |   T_IntConstant {
-                $$ = new IntConst( @1, $1);
+                $$ = new IntConstant( @1, $1);
           }
           |   T_FloatConstant {
-                $$ = new FloatConst( @1, $1);
+                $$ = new FloatConstant( @1, $1);
           }
-          |   T_BoolConst {
-                $$ = new BoolConst( @1, $1);
+          |   T_BoolConstant {
+                $$ = new BoolConstant( @1, $1);
           }
           |   T_LeftParen Expression T_RightParen { $$ = $2; }
           ;
@@ -340,7 +343,7 @@ Initializer: AssignmentExpr;
 DeclarationStmt:  Declaration;
 
 Statement:  CompoundStmtScope
-         |  SimpleStmt
+         |  SimpleStatement
          ;
 
 StatementScope:  CompoundStmtNoScope

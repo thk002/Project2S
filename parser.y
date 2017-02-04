@@ -45,6 +45,11 @@ void yyerror(const char *msg); // standard error-handling routine
     char identifier[MaxIdentLen+1]; // +1 for terminating null
     Decl *decl;
     List<Decl*> *declList;
+    Type * type;
+    TypeQualifier * typequalifer;
+    Expr * expr;
+    Operator *op;
+
 }
 
 
@@ -89,10 +94,13 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <decl>      Decl
 %type <decl>      Declaration
 
-%type <expr>      PrimaryExpression
-%type <expr>      PostFixExpression
+%type <expr>      PrimaryExpr
+%type <expr>      PostFixExpr
+%type <expr>      IntegerExpr
 
-%type <fnDecl>    FunctionDef
+%type <expr>      FunctionCall
+
+%type <decl>      FunctionDef
 
 
 
@@ -122,48 +130,52 @@ DeclList  :    DeclList Decl        { ($$=$1)->Append($2); }
 Decl      :   FunctionDef { }
           |   Declaration {
                 $$ = new vardecl($1, currtype);
-          }
-          |   ExpressionStmt
+              }
           ;
 
-Declaration:  FunctionProto T_Semicolon {}
-           |  SingleDeclaration T_Semicolon
-           |  TypeQualifier T_Identifier T_Semicolon
-           ;
+
+
+VarIdentifier:  T_Identifier{ 
+                    $$ = new Identifier(@1, $1);
+                }
+             ;
+
 
 PrimaryExpr:  T_Identifier { 
                 $$ = new VarExpr( @1, new Identifier( @1,$1));
           }
           |   T_IntConstant {
-                $$ = new IntConst( @1,$1);
+                $$ = new IntConst( @1, $1);
           }
           |   T_FloatConstant {
-                $$ = new FloatConst( @1,$1);
+                $$ = new FloatConst( @1, $1);
           }
           |   T_BoolConst {
-                $$ = new BoolConst( @1,$1);
+                $$ = new BoolConst( @1, $1);
           }
-          |   T_LeftParen Expression T_RightParen { }
+          |   T_LeftParen Expression T_RightParen { $$ = $2; }
           ;
+
+IntegerExpr:  Expression { $$ = $1; };
+
 
 PostFixExpr:  PrimaryExpr {
                 $$ = $1;
-          }
-          |   PostFixExpr T_LeftBracket IntegerExpr T_RightBracket
-          |   PostFixExpr T_Dot T_Identifier
-          |   PostFixExpr T_Inc
-          |   PostFixExpr T_Dec
-          |   Function
+              }
+          |   PostFixExpr T_LeftBracket Expression T_RightBracket {$$ = new }
+          |   PostFixExpr T_Dot T_Identifier {$$ = new FieldAccess($1, new Identifier(@3, $3)); }
+          |   PostFixExpr T_Inc {$$ = new PostfixExpr($1, new Operator(@2, "++"));}
+          |   PostFixExpr T_Dec {$$ = new PostfixExpr($1, new Operator(@2, "--"));}
+          |   FunctionCall { $$ = $1; }
           ;
 
-IntegerExpr:  Expression;
 
-FunctionCall  :   FunctionCallHeaderParam T_RightParen
-              |   FunctionCallHeaderNoParam T_RightParen
+FunctionCall  :   FunctionCallHeaderParam T_RightParen {$$ = new Call(@1, NULL, $1.field, $1.args);}
+              |   FunctionCallHeaderNoParam T_RightParen {$$ = new Call();}
               ;
 
-FunctionCallHeaderNoParam: FunctionCallHeader T_Void
-                         |   FunctionCallHeader
+FunctionCallHeaderNoParam:  FunctionCallHeader T_Void { }
+                         |  FunctionCallHeader
                          ;
 
 FunctionCallHeaderParam: FunctionCallHeader AssignmentExpr
@@ -172,8 +184,8 @@ FunctionCallHeaderParam: FunctionCallHeader AssignmentExpr
 
 FunctionCallHeader: FunctionIdentifier T_LeftParen;
 
-FunctionIdentifier: TypeSpecifier
-          	  |   PostFixExpr
+FunctionIdentifier:  TypeSpecifier
+          	      |  PostFixExpr
                   ;
 
 UnaryExpr:    PostFixExpr { $$ = $1; }
@@ -212,22 +224,22 @@ EqualityExpr: RelationalExpr
 
 AndExpr:      EqualityExpr;
 
-ExclusiveOr:  AndExpr;
+ExclusiveOrExpr:  AndExpr;
 
-InclusiveOr:  ExclusiveOr;
+InclusiveOrExpr:  ExclusiveOrExpr;
 
-LogicalAnd:   InclusiveOr
-          |   LogicalAnd T_And InclusiveOr
+LogicalAndExpr:   InclusiveOrExpr
+          |   LogicalAndExpr T_And InclusiveOrExpr
           ;
 
-LogicalXor:   LogicalAnd;
+LogicalXorExpr:   LogicalAndExpr;
 
-LogicalOr:    LogicalXor
-         |   LogicalOr T_Or LogicalXor
+LogicalOrExpr:    LogicalXorExpr
+         |   LogicalOrExpr T_Or LogicalXorExpr
          ;
 
-ConditionalExpr: LogicalOr
-               | LogicalOr T_Question Expression T_Colon AssignmentExpr
+ConditionalExpr: LogicalOrExpr
+               | LogicalOrExpr T_Question Expression T_Colon AssignmentExpr
 
 AssignmentExpr:  ConditionalExpr
               |  UnaryExpr AssignmentOp AssignmentExpr
@@ -240,12 +252,21 @@ AssignmentOp:  T_Equal
             |  T_SubAssign
             ;
 
-FunctionProto:  FunctionDecl T_RightParen
+Expression:  AssignmentExpr;
+
+ConstExpr: ConditionalExpr;
+
+Declaration:  FunctionProto T_Semicolon {}
+           |  InitDeclaratorList T_Semicolon
+           |  TypeQualifier T_Identifier T_Semicolon
+           ;
+
+FunctionProto:  FunctionDeclarator T_RightParen
              ;
 
-FunctionDecl:  FunctionHeader
-            |  FunctionHeaderParam
-            ;
+FunctionDeclarator:  FunctionHeader
+                  |  FunctionHeaderParam
+                  ;
 
 FunctionHeaderParam: FunctionHeader ParamDecl
                    | FunctionHeaderParam T_Comma ParamDecl
@@ -253,14 +274,21 @@ FunctionHeaderParam: FunctionHeader ParamDecl
 
 FunctionHeader:  FullySpecifiedType T_Identifier T_LeftParen;
 
-ParamDecl:  TypeSpecifier T_Identifier
-         |  TypeSpecifier  
+ParamDeclarator:  TypeSpecifier T_Identifier;
+
+ParamDecl:  ParamDeclarator
+         |  ParamTypeSpecifier  
          ;
+
+ParamTypeSpecifier:  TypeSpecifier;
+
+InitDeclaratorList:  SingleDeclaration;
+
 
 SingleDeclaration:  FullySpecifiedType 
                  |  FullySpecifiedType T_Identifier
-                 |  FullySpecifiedType T_Identifier T_LeftBracket T_Const T_RightBracket
-                 |  FullySpecifiedType T_Identifier T_Equal AssignmentExpr
+                 |  FullySpecifiedType T_Identifier ArrSpecifier
+                 |  FullySpecifiedType T_Identifier T_Equal Initializer
                  ;
 
 FullySpecifiedType:  TypeSpecifier
@@ -271,15 +299,19 @@ TypeQualifier:  SingleTypeQualifier
              |  TypeQualifier SingleTypeQualifier
              ;
 
-SingleTypeQualifier:  T_Const
-                   |  T_In
-                   |  T_Out
-                   |  T_Uniform
+SingleTypeQualifier:  StorageQualifier;
+
+StorageQualifier:  T_Const  { $$ = TypeQualifier::constTypeQualifier;}
+                   |  T_In  { $$ = TypeQualifier::inTypeQualifier; }
+                   |  T_Out  { $$ = TypeQualifier::outTypeQualifier; }
+                   |  T_Uniform  {$$ = TypeQualifier::uniformTypeQualifier;}
                    ;
 
 TypeSpecifier:  TypeSpecifierNonArr
-             |  TypeSpecifierNonArr T_LeftBracket ConditionalExpr T_RightBracket
+             |  TypeSpecifierNonArr ArrSpecifier
              ;
+
+ArrSpecifier:  T_LeftBracket ConstExpr T_RightBracket;
 
 TypeSpecifierNonArr:  T_Void  {$$ = Type::voidType;}
                    |   T_Bool  {$$ = Type::boolType;}
@@ -303,77 +335,92 @@ TypeSpecifierNonArr:  T_Void  {$$ = Type::voidType;}
                    |   T_Uvec4   {$$ = Type::uvec4Type;}
                    ;     
 
-Statement:  CompoundScope
-         |  SimpleStatement
+Initializer: AssignmentExpr;
+
+DeclarationStmt:  Declaration;
+
+Statement:  CompoundStmtScope
+         |  SimpleStmt
          ;
 
-StatementScope:  CompoundNoScope
+StatementScope:  CompoundStmtNoScope
               |  SimpleStatement
               ;
 
-StatementNoScope:  CompoundNoScope
+StatementNoScope:  CompoundStmtNoScope
                |   SimpleStatement
                ;
 
-SimpleStatement:  Decl
-               |  T_Semicolon AssignmentExpr
-               |  T_Semicolon
-               |  T_If T_LeftParen AssignmentExpr T_RightParen SelectionRestStmt
-               |  T_Switch T_LeftParen AssignmentExpr T_RightParen T_LeftBrace StatementList T_RightBrace
-               |  T_Case AssignmentExpr T_Colon
-               |  T_Default T_Colon
+SimpleStatement:  DeclarationStmt
+               |  ExpressionStmt
+               |  SelectionStmt
+               |  SwitchStmt
+               |  CaseLabel
                |  IterationStmt
                |  JumpStmt
                ;
 
-CompoundScope:  T_LeftBrace T_RightBrace
-             |  T_LeftBrace StatementList T_RightBrace
-             ;
+CompoundStmtScope:  T_LeftBrace T_RightBrace
+                 |  T_LeftBrace StatementList T_RightBrace
+                 ;
 
-CompoundNoScope: T_LeftBrace T_RightBrace
-             |  T_LeftBrace StatementList T_RightBrace
-             ;
+CompoundStmtNoScope: T_LeftBrace T_RightBrace
+                   |  T_LeftBrace StatementList T_RightBrace
+                   ;
 
 StatementList:  Statement
              |  StatementList Statement
              ; 
 
+ExpressionStmt:  T_Semicolon
+              |  Expression T_Semicolon
+              ;
+
+SelectionStmt:  T_If T_LeftParen Expression T_RightParen SelectionRestStmt;
+
 SelectionRestStmt:  StatementScope T_Else StatementScope
                  |  StatementScope
                  ;
-Condition:  AssignmentExpr
-         |  FullySpecifiedType T_Identifier T_Equal AssignmentExpr
+
+Condition:  Expression
+         |  FullySpecifiedType T_Identifier T_Equal Initializer
+         ;
+
+SwitchStmt:  T_Switch T_LeftParen Expression T_RightParen T_LeftBrace SwitchStmtList T_RightBrace;
+
+SwitchStmtList: StatementList;
+
+CaseLabel:  T_Case Expression T_Colon
+         |  T_Default T_Colon
          ;
 
 IterationStmt:  T_While T_LeftParen Condition T_RightParen StatementNoScope
-             |  T_Do StatementScope T_While T_LeftParen AssignmentExpr T_RightParen T_Semicolon
+             |  T_Do StatementScope T_While T_LeftParen Expression T_RightParen T_Semicolon
              |  T_For T_LeftParen ForInitStmt ForRestStmt T_RightParen StatementNoScope
              ;
 
-ForInitStmt:  T_Semicolon AssignmentExpr
-           |  T_Semicolon
-           |  Declaration
+ForInitStmt:  ExpressionStmt
+           |  DeclarationStmt
            ;
 
-ForRestStmt:  Condition T_Semicolon
-           |  Condition T_Semicolon AssignmentExpr
+ConditionOpt: Condition;
+
+ForRestStmt:  ConditionOpt T_Semicolon
+           |  ConditionOpt T_Semicolon Expression
            ;
 
 JumpStmt:  T_Continue T_Semicolon
         |  T_Break T_Semicolon
         |  T_Return T_Semicolon
-        |  T_Return AssignmentExpr T_Semicolon
+        |  T_Return Expression T_Semicolon
         ;
 
-TranslationUnit:  ExternalDecl
-               |  TranslationUnit ExternalDecl
+TranslationUnit:  Decl
+               |  TranslationUnit Decl
                ;
 
-ExternalDecl:  FunctionDef
-            |  Declaration
-            ;
+FunctionDef:  FunctionProto CompoundStmtNoScope;
 
-FunctionDef:  FunctionProto CompoundNoScope;
 %%
 
 /* The closing %% above marks the end of the Rules section and the beginning

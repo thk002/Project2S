@@ -2,7 +2,9 @@
 
 vec2 myVar;
 
-void main() {}
+void main() {
+foo();
+}
 
 // dummy foo(). empty body
 // 

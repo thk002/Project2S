@@ -46,10 +46,35 @@ void yyerror(const char *msg); // standard error-handling routine
     Decl *decl;
     List<Decl*> *declList;
     Type * type;
-    TypeQualifier * typequalifer;
+    TypeQualifier * typeQualifier;
+    //experssions
     Expr * expr;
     Operator *op;
     Call *call;
+    FnDecl *fnDecl;
+    LogicalExpr *logicalExpr;
+    RelationalExpr *relationalExpr;
+    EqualityExpr *equalityExpr;
+    SelectionExpr *selectionExpr;
+    AssignExpr *assignExpr;
+    ArithmeticExpr *arithmeticExpr;
+    //stmts
+    Stmt *stmt;
+    List<Stmt*> *stmtList;
+    ConditionalStmt *conditionalStmt;
+    LoopStmt *loopStmt;
+    WhileStmt *whileStmt;
+    ForStmt *forStmt;
+    DoWhileStmt *doWhileStmt;
+    IfStmt *ifStmt;
+    BreakStmt *breakStmt;
+    ReturnStmt *returnStmt;
+    SwitchLabel *switchLabel;
+    Case *c;
+    Default *d;
+    SwitchStmt *switchStmt;
+
+    
 
 }
 
@@ -100,11 +125,37 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <expr>      PrimaryExpr
 %type <expr>      PostFixExpr
 %type <expr>      IntegerExpr
+%type <expr>      Expression UnaryExpr MultiExpr AddExpr ShiftExpr RelationalExpr EqualityExpr AndExpr 
+%type <expr>      ExclusiveOrExpr InclusiveOrExpr ConditionalExpr AssignmentExpr 
+%type <expr>      ConstExpr 
 
-%type <call>      FunctionCall FunctionCallHeaderNoParam FunctionCallHeaderParam
+%type <logicalExpr> LogicalAndExpr LogicalXorExpr LogicalOrExpr
+%type <expr>  Initializer
 
-%type <>      FunctionDef
+%type <call>      FunctionCall FunctionCallHeaderNoParam FunctionCallHeaderParam FunctionCallHeader
 
+%type <fnDecl>    FunctionDef FunctionProto FunctionDeclarator FunctionHeaderParam FunctionHeader
+
+%type <decl>      ParamDecl ParamDeclarator SingleDeclaration  
+%type <type>      FunctionIdentifier ParamTypeSpecifier 
+%type <declList>  InitDeclaratorList
+
+%type <type>      FullySpecifiedType TypeSpecifier ArrSpecifier TypeSpecifierNonArr
+
+%type <typeQualifier> TypeQualifier SingleTypeQualifier StorageQualifier 
+
+%type <stmt> Statement StatementScope StatementNoScope SimpleStatement CompoundStmtScope CompoundStmtNoScope
+%type <stmtList> StatementList
+
+%type <expr> ExpressionStmt
+%type <ifStmt> SelectionStmt SelectionRestStmt
+%type <expr> Condition ConditionOpt
+%type <switchStmt> SwitchStmt
+%type <c> CaseLabel
+%type <stmt> IterationStmt ForInitStmt ForRestStmt JumpStmt
+
+
+%type<op>         UnaryOp AssignmentOp
 
 
 %%
@@ -123,14 +174,14 @@ Program   :    DeclList            {
                                       // if no errors, advance to next phase
                                       if (ReportError::NumErrors() == 0)
                                           program->Print(0);
-                                    }
+                                      }
           ;
 
 DeclList  :    DeclList Decl        { ($$=$1)->Append($2); }
           |    Decl                 { ($$ = new List<Decl*>)->Append($1); }
           ;
 
-Decl      :   FunctionDef { }
+Decl      :   FunctionDef {  }
           |   Declaration {
                 $$ = new vardecl($1);
               }
@@ -173,36 +224,40 @@ PostFixExpr:  PrimaryExpr {
           ;
 
 
-FunctionCall  :   FunctionCallHeaderParam T_RightParen {$$ = new Call(@1, NULL, $1.field, $1.args);}
-              |   FunctionCallHeaderNoParam T_RightParen {$$ = new Call();}
+FunctionCall  :   FunctionCallHeaderParam T_RightParen {$$ = new Call(@1, NULL, $1.field, $1.actuals);}
+              |   FunctionCallHeaderNoParam T_RightParen {
+			List<Expr*> *emptyList;				
+			$$ = new Call(@1, NULL , $1.field, emptyList);
+		}
               ;
 
-FunctionCallHeaderNoParam:  FunctionCallHeader T_Void { }
+FunctionCallHeaderNoParam:  FunctionCallHeader T_Void { $$ = new Call(); }
                          |  FunctionCallHeader
                          ;
 
-FunctionCallHeaderParam: FunctionCallHeader AssignmentExpr
-                   |   FunctionCallHeaderParam T_Comma AssignmentExpr
-                   ;
+FunctionCallHeaderParam:  FunctionCallHeader AssignmentExpr {$$ = new Call(@1, $2, $1.field, $1.actuals); }
+                       |  FunctionCallHeaderParam T_Comma AssignmentExpr
+			 { $$ = new Call(@1, $3, $1.field, $1.actuals);}
+                       ;
 
-FunctionCallHeader: FunctionIdentifier T_LeftParen;
+FunctionCallHeader: FunctionIdentifier T_LeftParen { $$ = new Call(@1, NULL, $1, NULL); }
+                  ;
 
-FunctionIdentifier:  TypeSpecifier
-          	      |  PostFixExpr
+FunctionIdentifier:  T_Identifier { $$ = new Identifier(@1, $1); }
                   ;
 
 UnaryExpr:    PostFixExpr { $$ = $1; }
-          |   T_Inc UnaryExpr
-          |   T_Dec UnaryExpr
-          |   UnaryOp UnaryExpr
+          |   T_Inc UnaryExpr { $$ = new ArithmeticExpr(NULL,new Operator(@1,"++"),$2); }
+          |   T_Dec UnaryExpr { $$ = new ArithmeticExpr(NULL,new Operator(@1,"--"),$2); }
+          |   UnaryOp UnaryExpr  { $$ = new ArithmeticExpr(NULL, $1, $2); }
           ;
 
-UnaryOp:      T_Plus
-          |   T_Dash
+UnaryOp:      T_Plus  {$$ = new Operator(@1, "+");}
+          |   T_Dash  {$$ = new Operator(@1, "-");}
           ;
 
-MultiExpr:    UnaryExpr
-          |   MultiExpr T_Star UnaryExpr
+MultiExpr:    UnaryExpr  {$$ = $1;}
+          |   MultiExpr T_Star UnaryExpr { $$ = new}
           |   MultiExpr T_Slash UnaryExpr
           ;
 
@@ -231,7 +286,7 @@ ExclusiveOrExpr:  AndExpr;
 
 InclusiveOrExpr:  ExclusiveOrExpr;
 
-LogicalAndExpr:   InclusiveOrExpr
+LogicalAndExpr:   InclusiveOrExpr {$$ = $1; }
           |   LogicalAndExpr T_And InclusiveOrExpr
           ;
 
@@ -241,18 +296,18 @@ LogicalOrExpr:    LogicalXorExpr
          |   LogicalOrExpr T_Or LogicalXorExpr
          ;
 
-ConditionalExpr: LogicalOrExpr
-               | LogicalOrExpr T_Question Expression T_Colon AssignmentExpr
+ConditionalExpr: LogicalOrExpr {}
+               | LogicalOrExpr T_Question Expression T_Colon AssignmentExpr {}
 
 AssignmentExpr:  ConditionalExpr
               |  UnaryExpr AssignmentOp AssignmentExpr
               ;
 
-AssignmentOp:  T_Equal
-            |  T_MulAssign
-            |  T_AddAssign
-            |  T_DivAssign
-            |  T_SubAssign
+AssignmentOp:  T_Equal  {$$ = new Operator(@1, "=");}
+            |  T_MulAssign  {$$ = new Operator(@1, "*="); }
+            |  T_AddAssign  {$$ = new Operator(@1, "+="); }
+            |  T_DivAssign  {$$ = new Operator(@1, "/="); }
+            |  T_SubAssign  {$$ = new Operator(@1, "-="); }
             ;
 
 Expression:  AssignmentExpr;
@@ -403,7 +458,6 @@ IterationStmt:  T_While T_LeftParen Condition T_RightParen StatementNoScope
              ;
 
 ForInitStmt:  ExpressionStmt
-           |  DeclarationStmt
            ;
 
 ConditionOpt: Condition;
@@ -412,15 +466,11 @@ ForRestStmt:  ConditionOpt T_Semicolon
            |  ConditionOpt T_Semicolon Expression
            ;
 
-JumpStmt:  T_Continue T_Semicolon
-        |  T_Break T_Semicolon
+JumpStmt:  T_Break T_Semicolon
         |  T_Return T_Semicolon
         |  T_Return Expression T_Semicolon
         ;
 
-TranslationUnit:  Decl
-               |  TranslationUnit Decl
-               ;
 
 FunctionDef:  FunctionProto CompoundStmtNoScope;
 

@@ -145,6 +145,7 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <typeQualifier> TypeQualifier SingleTypeQualifier StorageQualifier 
 
 %type <stmt> Statement StatementScope StatementNoScope SimpleStatement CompoundStmtScope CompoundStmtNoScope
+
 %type <stmtList> StatementList
 
 %type <expr> ExpressionStmt
@@ -181,9 +182,9 @@ DeclList  :    DeclList Decl        { ($$=$1)->Append($2); }
           |    Decl                 { ($$ = new List<Decl*>)->Append($1); }
           ;
 
-Decl      :   FunctionDef {  }
+Decl      :   FunctionDef { $$ = $1; }
           |   Declaration {
-                $$ = new vardecl($1);
+                $$ = $1;
               }
           ;
 
@@ -257,50 +258,51 @@ UnaryOp:      T_Plus  {$$ = new Operator(@1, "+");}
           ;
 
 MultiExpr:    UnaryExpr  {$$ = $1;}
-          |   MultiExpr T_Star UnaryExpr { $$ = new}
-          |   MultiExpr T_Slash UnaryExpr
+          |   MultiExpr T_Star UnaryExpr { $$ = new ArithmeticExpr($1, new Operator(@2, "*"), $3);}
+          |   MultiExpr T_Slash UnaryExpr {$$ = new ArithmeticExpr($1, new Operator(@2, "/"), $3);}
           ;
 
-AddExpr:      MultiExpr
-          |   AddExpr T_Plus MultiExpr
-          |   AddExpr T_Dash MultiExpr
+AddExpr:      MultiExpr {$$ = $1;}
+          |   AddExpr T_Plus MultiExpr {$$ = new ArithmeticExpr($1, new Operator(@2, "+"), $3);}
+          |   AddExpr T_Dash MultiExpr {$$ = new ArithmeticExpr($1, new Operator(@2, "-"), $3);}
           ;
 
-ShiftExpr:    AddExpr;
+ShiftExpr:    AddExpr {$$ = $1;};
 
-RelationalExpr: ShiftExpr
-          |   RelationalExpr T_LeftAngle ShiftExpr
-          |   RelationalExpr T_RightAngle ShiftExpr
-          |   RelationalExpr T_LessEqual ShiftExpr
-          |   RelationalExpr T_GreaterEqual ShiftExpr
+RelationalExpr: ShiftExpr {$$ = $1;}
+          |   RelationalExpr T_LeftAngle ShiftExpr {$$ = new RelationalExpr($1, new Operator(@2, "<"), $3);}
+          |   RelationalExpr T_RightAngle ShiftExpr {$$ = new RelationalExpr($1, new Operator(@2, ">"), $3);}
+          |   RelationalExpr T_LessEqual ShiftExpr {$$ = new RelationalExpr($1, new Operator(@2, "<="), $3);}
+          |   RelationalExpr T_GreaterEqual ShiftExpr {$$ = new RelationalExpr($1, new Operator(@2, ">="), $3);}
           ;
 
-EqualityExpr: RelationalExpr
-          |   EqualityExpr T_EQ RelationalExpr
-          |   EqualityExpr T_NE RelationalExpr
+EqualityExpr: RelationalExpr {$$ = $1;}
+          |   EqualityExpr T_EQ RelationalExpr {$$ = new EqualityExpr($1, new Operator(@2, "=="), $3);}
+          |   EqualityExpr T_NE RelationalExpr {$$ = new EqualityExpr($1, new Operator(@2, "!="), $3);}
           ;
 
-AndExpr:      EqualityExpr;
+AndExpr:      EqualityExpr {$$ = $1;};
 
-ExclusiveOrExpr:  AndExpr;
+ExclusiveOrExpr:  AndExpr {$$ = $1;};
 
-InclusiveOrExpr:  ExclusiveOrExpr;
+InclusiveOrExpr:  ExclusiveOrExpr {$$ = $1;};
 
-LogicalAndExpr:   InclusiveOrExpr {$$ = $1; }
-          |   LogicalAndExpr T_And InclusiveOrExpr
+LogicalAndExpr:   InclusiveOrExpr {$$ = $1;}
+          |   LogicalAndExpr T_And InclusiveOrExpr {$$ = new LogicalExpr($1, new Opeartor(@2, "&&"), $3);}
           ;
 
-LogicalXorExpr:   LogicalAndExpr;
+LogicalXorExpr:   LogicalAndExpr {$$ = $1;};
 
-LogicalOrExpr:    LogicalXorExpr
-         |   LogicalOrExpr T_Or LogicalXorExpr
+LogicalOrExpr:    LogicalXorExpr {$$ = $1;}
+         |   LogicalOrExpr T_Or LogicalXorExpr {$$ = new LogicalExpr($1, new Operator(@2, "||"), $3);}
          ;
 
-ConditionalExpr: LogicalOrExpr {}
-               | LogicalOrExpr T_Question Expression T_Colon AssignmentExpr {}
+ConditionalExpr: LogicalOrExpr {$$ = $1;}
+               | LogicalOrExpr T_Question Expression T_Colon AssignmentExpr {$$ = new SelectionExpr($1, $3, $5);}
+	;
 
-AssignmentExpr:  ConditionalExpr
-              |  UnaryExpr AssignmentOp AssignmentExpr
+AssignmentExpr:  ConditionalExpr {$$ = $1;}
+              |  UnaryExpr AssignmentOp AssignmentExpr {$$ = new AssignExpr($1, new Operator(@2, "="), $3);}
               ;
 
 AssignmentOp:  T_Equal  {$$ = new Operator(@1, "=");}
@@ -310,20 +312,20 @@ AssignmentOp:  T_Equal  {$$ = new Operator(@1, "=");}
             |  T_SubAssign  {$$ = new Operator(@1, "-="); }
             ;
 
-Expression:  AssignmentExpr;
+Expression:  AssignmentExpr {$$ = $1;};
 
-ConstExpr: ConditionalExpr;
+ConstExpr: ConditionalExpr {$$ = $1;};
 
-Declaration:  FunctionProto T_Semicolon {}
-           |  InitDeclaratorList T_Semicolon
-           |  TypeQualifier T_Identifier T_Semicolon
+Declaration:  FunctionProto T_Semicolon {$$=$1;}
+           |  InitDeclaratorList T_Semicolon {$$=$1;}
+           |  TypeQualifier T_Identifier T_Semicolon //STUFF
            ;
 
-FunctionProto:  FunctionDeclarator T_RightParen
+FunctionProto:  FunctionDeclarator T_RightParen {$$ = $1;}
              ;
 
-FunctionDeclarator:  FunctionHeader
-                  |  FunctionHeaderParam
+FunctionDeclarator:  FunctionHeader {$$ = $1;}
+                  |  FunctionHeaderParam {$$ = $1;}
                   ;
 
 FunctionHeaderParam: FunctionHeader ParamDecl
@@ -365,11 +367,11 @@ StorageQualifier:  T_Const  { $$ = TypeQualifier::constTypeQualifier;}
                    |  T_Uniform  {$$ = TypeQualifier::uniformTypeQualifier;}
                    ;
 
-TypeSpecifier:  TypeSpecifierNonArr
-             |  TypeSpecifierNonArr ArrSpecifier
+TypeSpecifier:  TypeSpecifierNonArr { $$=$1;}
+             |  TypeSpecifierNonArr ArrSpecifier {$$ = new ArrayType(@1, $1);}
              ;
 
-ArrSpecifier:  T_LeftBracket ConstExpr T_RightBracket;
+ArrSpecifier:  T_LeftBracket ConstExpr T_RightBracket {};
 
 TypeSpecifierNonArr:  T_Void  {$$ = Type::voidType;}
                    |   T_Bool  {$$ = Type::boolType;}
@@ -393,12 +395,12 @@ TypeSpecifierNonArr:  T_Void  {$$ = Type::voidType;}
                    |   T_Uvec4   {$$ = Type::uvec4Type;}
                    ;     
 
-Initializer: AssignmentExpr;
+Initializer: AssignmentExpr {};
 
-DeclarationStmt:  Declaration;
+DeclarationStmt:  Declaration {};
 
-Statement:  CompoundStmtScope
-         |  SimpleStatement
+Statement:  CompoundStmtScope {$$=$1;}
+         |  SimpleStatement {$$=$1;}
          ;
 
 StatementScope:  CompoundStmtNoScope
@@ -409,13 +411,13 @@ StatementNoScope:  CompoundStmtNoScope
                |   SimpleStatement
                ;
 
-SimpleStatement:  DeclarationStmt
-               |  ExpressionStmt
-               |  SelectionStmt
-               |  SwitchStmt
-               |  CaseLabel
-               |  IterationStmt
-               |  JumpStmt
+SimpleStatement:  DeclarationStmt {$$ = $1;}
+               |  ExpressionStmt {$$ = $1;}
+               |  SelectionStmt {$$ = $1;}
+               |  SwitchStmt {$$ = $1;}
+               |  CaseLabel {$$ = $1;}
+               |  IterationStmt {$$ = $1;}
+               |  JumpStmt {$$ = $1;}
                ;
 
 CompoundStmtScope:  T_LeftBrace T_RightBrace
@@ -430,8 +432,8 @@ StatementList:  Statement
              |  StatementList Statement
              ; 
 
-ExpressionStmt:  T_Semicolon
-              |  Expression T_Semicolon
+ExpressionStmt:  T_Semicolon {$$ = new EmptyExpr();}
+              |  Expression T_Semicolon {$$ =$1;}
               ;
 
 SelectionStmt:  T_If T_LeftParen Expression T_RightParen SelectionRestStmt;
@@ -440,7 +442,7 @@ SelectionRestStmt:  StatementScope T_Else StatementScope
                  |  StatementScope
                  ;
 
-Condition:  Expression
+Condition:  Expression {$$ = $1;}
          |  FullySpecifiedType T_Identifier T_Equal Initializer
          ;
 
@@ -466,9 +468,9 @@ ForRestStmt:  ConditionOpt T_Semicolon
            |  ConditionOpt T_Semicolon Expression
            ;
 
-JumpStmt:  T_Break T_Semicolon
-        |  T_Return T_Semicolon
-        |  T_Return Expression T_Semicolon
+JumpStmt:  T_Break T_Semicolon {$$ = new BreakStmt(@1);}
+        |  T_Return T_Semicolon {$$ = new ReturnStmt(@1, new EmptyExpr());}
+        |  T_Return Expression T_Semicolon {$$ = new ReturnStmt(@1, $2);}
         ;
 
 

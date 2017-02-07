@@ -1,6 +1,9 @@
 int x = 5;
-if(x == 5){
-  x = 1;
+
+int func(int x){
+  int y = x;
+  if(x){
+     y=0;
+  }
+
 }
-else
-  x = 2;

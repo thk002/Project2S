@@ -44,9 +44,11 @@ void yyerror(const char *msg); // standard error-handling routine
     float floatConstant;
     char identifier[MaxIdentLen+1]; // +1 for terminating null
     Decl *decl;
+    VarDecl *varDecl;
     List<Decl*> *declList;
     Type * type;
     TypeQualifier * typeQualifier;
+    Identifier* id;
     //experssions
     Expr * expr;
     Operator *op;
@@ -74,6 +76,20 @@ void yyerror(const char *msg); // standard error-handling routine
     Default *d;
     SwitchStmt *switchStmt;
 
+    struct
+    {
+      List<Expr*> * params;
+      Identifier* identifier;
+      
+    } fncallandparams;
+
+    struct 
+    {
+      List<VarDecl*> *formals;
+      Identifier* identifier;
+      Type* returnType;
+      TypeQualifier* returnTypeQ;
+    } fndeclandparams;
     
 
 }
@@ -120,36 +136,34 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <decl>      Decl
 %type <decl>      Declaration
 
-%type <decl>      VarIdentifier 
 
 %type <expr>      PrimaryExpr
 %type <expr>      PostFixExpr
-%type <expr>      IntegerExpr
 %type <expr>      Expression UnaryExpr MultiExpr AddExpr ShiftExpr RelationalExpr EqualityExpr AndExpr 
 %type <expr>      ExclusiveOrExpr InclusiveOrExpr ConditionalExpr AssignmentExpr 
 %type <expr>      ConstExpr 
 
-%type <logicalExpr> LogicalAndExpr LogicalXorExpr LogicalOrExpr
+%type <expr> LogicalAndExpr LogicalXorExpr LogicalOrExpr
 %type <expr>  Initializer
 
-%type <call>      FunctionCall FunctionCallHeaderNoParam FunctionCallHeaderParam FunctionCallHeader
+%type <call>      FunctionCall 
 
-%type <fnDecl>    FunctionDef FunctionProto FunctionDeclarator FunctionHeaderParam FunctionHeader
+%type <id>        FunctionCallHeaderNoParam FunctionCallHeader
 
-%type <decl>      ParamDecl ParamDeclarator SingleDeclaration  
-%type <type>      FunctionIdentifier ParamTypeSpecifier 
-%type <declList>  InitDeclaratorList
+%type <fnDecl>    FunctionDef FunctionProto 
 
-%type <type>      FullySpecifiedType TypeSpecifier ArrSpecifier TypeSpecifierNonArr
+%type <decl>      SingleDeclaration InitDeclaratorList
+%type <varDecl>   ParamDecl ParamDeclarator 
+%type <type>      TypeSpecifier ArrSpecifier TypeSpecifierNonArr
 
 %type <typeQualifier> TypeQualifier SingleTypeQualifier StorageQualifier 
 
-%type <stmt> Statement StatementScope StatementNoScope SimpleStatement CompoundStmtScope CompoundStmtNoScope
+%type <stmt> Statement StatementScope StatementNoScope SimpleStatement CompoundStmtScope CompoundStmtNoScope 
 
 %type <stmtList> StatementList
 
 %type <expr> ExpressionStmt
-%type <ifStmt> SelectionStmt SelectionRestStmt
+%type <ifStmt> SelectionStmt
 %type <expr> Condition ConditionOpt
 %type <switchStmt> SwitchStmt
 %type <c> CaseLabel
@@ -157,6 +171,10 @@ void yyerror(const char *msg); // standard error-handling routine
 
 
 %type<op>         UnaryOp AssignmentOp
+
+//struct types
+%type<fncallandparams>  FunctionCallHeaderParam
+%type<fndeclandparams>  FunctionHeaderParam FunctionHeader FunctionDeclarator
 
 
 %%
@@ -189,13 +207,6 @@ Decl      :   FunctionDef { $$ = $1; }
           ;
 
 
-
-VarIdentifier:  T_Identifier{ 
-                    $$ = new Identifier(@1, $1);
-                }
-             ;
-
-
 PrimaryExpr:  T_Identifier { 
                 $$ = new VarExpr( @1, new Identifier( @1,$1));
           }
@@ -211,13 +222,12 @@ PrimaryExpr:  T_Identifier {
           |   T_LeftParen Expression T_RightParen { $$ = $2; }
           ;
 
-IntegerExpr:  Expression { $$ = $1; };
 
 
 PostFixExpr:  PrimaryExpr {
                 $$ = $1;
               }
-          |   PostFixExpr T_LeftBracket Expression T_RightBracket {$$ = new }
+          |   PostFixExpr T_LeftBracket Expression T_RightBracket {$$ = new ArrayAccess(@1, $1, $3); }
           |   PostFixExpr T_Dot T_Identifier {$$ = new FieldAccess($1, new Identifier(@3, $3)); }
           |   PostFixExpr T_Inc {$$ = new PostfixExpr($1, new Operator(@2, "++"));}
           |   PostFixExpr T_Dec {$$ = new PostfixExpr($1, new Operator(@2, "--"));}
@@ -225,31 +235,40 @@ PostFixExpr:  PrimaryExpr {
           ;
 
 
-FunctionCall  :   FunctionCallHeaderParam T_RightParen {$$ = new Call(@1, NULL, $1.field, $1.actuals);}
-              |   FunctionCallHeaderNoParam T_RightParen {
-			List<Expr*> *emptyList;				
-			$$ = new Call(@1, NULL , $1.field, emptyList);
-		}
+FunctionCall  :   FunctionCallHeaderParam T_RightParen {
+                      $$ = new Call(@1, NULL, $1.identifier, $1.params);
+
+                  }
+              |   FunctionCallHeaderNoParam T_RightParen {		
+			               $$ = new Call(@1, NULL , $1, new List<Expr*>);
+		              }
               ;
 
-FunctionCallHeaderNoParam:  FunctionCallHeader T_Void { $$ = new Call(); }
-                         |  FunctionCallHeader
+FunctionCallHeaderNoParam:  FunctionCallHeader T_Void { $$ = $1; }
+                         |  FunctionCallHeader {$$ = $1;}
                          ;
 
-FunctionCallHeaderParam:  FunctionCallHeader AssignmentExpr {$$ = new Call(@1, $2, $1.field, $1.actuals); }
+FunctionCallHeaderParam:  FunctionCallHeader AssignmentExpr {
+                                  
+                            List<Expr*> *lst = new List<Expr*>;
+                            lst->Append($2); 
+                            $$.params = lst;
+                            $$.identifier = $1;
+                          }
                        |  FunctionCallHeaderParam T_Comma AssignmentExpr
-			 { $$ = new Call(@1, $3, $1.field, $1.actuals);}
+			                    { 
+                            ($$=$1).params->Append($3);
+                          }
                        ;
 
-FunctionCallHeader: FunctionIdentifier T_LeftParen { $$ = new Call(@1, NULL, $1, NULL); }
-                  ;
-
-FunctionIdentifier:  T_Identifier { $$ = new Identifier(@1, $1); }
+FunctionCallHeader: T_Identifier T_LeftParen { 
+                        $$ = new Identifier(@1, $1); 
+                    }
                   ;
 
 UnaryExpr:    PostFixExpr { $$ = $1; }
-          |   T_Inc UnaryExpr { $$ = new ArithmeticExpr(NULL,new Operator(@1,"++"),$2); }
-          |   T_Dec UnaryExpr { $$ = new ArithmeticExpr(NULL,new Operator(@1,"--"),$2); }
+          |   T_Inc UnaryExpr { $$ = new ArithmeticExpr(NULL, new Operator(@1,"++"),$2); }
+          |   T_Dec UnaryExpr { $$ = new ArithmeticExpr(NULL, new Operator(@1,"--"),$2); }
           |   UnaryOp UnaryExpr  { $$ = new ArithmeticExpr(NULL, $1, $2); }
           ;
 
@@ -288,7 +307,7 @@ ExclusiveOrExpr:  AndExpr {$$ = $1;};
 InclusiveOrExpr:  ExclusiveOrExpr {$$ = $1;};
 
 LogicalAndExpr:   InclusiveOrExpr {$$ = $1;}
-          |   LogicalAndExpr T_And InclusiveOrExpr {$$ = new LogicalExpr($1, new Opeartor(@2, "&&"), $3);}
+          |   LogicalAndExpr T_And InclusiveOrExpr {$$ = new LogicalExpr($1, new Operator(@2, "&&"), $3);}
           ;
 
 LogicalXorExpr:   LogicalAndExpr {$$ = $1;};
@@ -318,48 +337,85 @@ ConstExpr: ConditionalExpr {$$ = $1;};
 
 Declaration:  FunctionProto T_Semicolon {$$=$1;}
            |  InitDeclaratorList T_Semicolon {$$=$1;}
-           |  TypeQualifier T_Identifier T_Semicolon //STUFF
+           |  TypeQualifier TypeSpecifier T_Identifier T_Semicolon 
+              { Identifier * id = new Identifier(@3, $3);
+                $$ = new VarDecl(id, $2, $1);
+              }
            ;
 
-FunctionProto:  FunctionDeclarator T_RightParen {$$ = $1;}
+FunctionProto:  FunctionDeclarator T_RightParen {
+                  if (!$1.returnTypeQ)
+                  {
+                    $$ = new FnDecl($1.identifier, $1.returnType, $1.formals);
+                  }
+                  else{
+                    $$ = new FnDecl($1.identifier, $1.returnType, $1.returnTypeQ, $1.formals);
+                  }
+                }
              ;
 
 FunctionDeclarator:  FunctionHeader {$$ = $1;}
                   |  FunctionHeaderParam {$$ = $1;}
                   ;
 
-FunctionHeaderParam: FunctionHeader ParamDecl
-                   | FunctionHeaderParam T_Comma ParamDecl
+FunctionHeaderParam: FunctionHeader ParamDecl { 
+                        List<VarDecl*> *lst = new List<VarDecl*>;
+                        lst->Append($2);
+                        ($$=$1).formals = lst;
+                      }
+                   | FunctionHeaderParam T_Comma ParamDecl {
+                        ($$=$1).formals->Append($3);
+                      }
                    ;
 
-FunctionHeader:  FullySpecifiedType T_Identifier T_LeftParen;
+FunctionHeader:  TypeSpecifier T_Identifier T_LeftParen {
+                    $$.returnType = $1;
+                    $$.returnTypeQ = NULL;
+                    $$.identifier = new Identifier(@2, $2);
+                    $$.formals = new List<VarDecl*>;
+                 }
+              |  TypeQualifier TypeSpecifier T_Identifier T_LeftParen {
+                    $$.returnType = $2;
+                    $$.returnTypeQ = $1;
+                    $$.identifier = new Identifier(@3, $3);
+                    $$.formals = new List<VarDecl*>;
+                 }
+              ;
 
-ParamDeclarator:  TypeSpecifier T_Identifier;
+ParamDeclarator:  TypeSpecifier T_Identifier { $$ = new VarDecl(new Identifier(@2, $2), $1); };
 
-ParamDecl:  ParamDeclarator
-         |  ParamTypeSpecifier  
+ParamDecl:  ParamDeclarator {$$ = $1;}
          ;
 
-ParamTypeSpecifier:  TypeSpecifier;
-
-InitDeclaratorList:  SingleDeclaration;
+InitDeclaratorList:  SingleDeclaration {$$ =$1;};
 
 
-SingleDeclaration:  FullySpecifiedType 
-                 |  FullySpecifiedType T_Identifier
-                 |  FullySpecifiedType T_Identifier ArrSpecifier
-                 |  FullySpecifiedType T_Identifier T_Equal Initializer
+SingleDeclaration:  TypeSpecifier T_Identifier {
+                        $$ = new VarDecl(new Identifier(@2, $2), $1);
+                    }
+                 |  TypeQualifier TypeSpecifier T_Identifier {
+                        $$ = new VarDecl(new Identifier(@3, $3), $2, $1);
+                    }
+                 |  TypeSpecifier T_Identifier ArrSpecifier {
+                          $$ = new VarDecl(new Identifier(@2, $2), new ArrayType(@1, $1));
+                    }
+                 |  TypeQualifier TypeSpecifier T_Identifier ArrSpecifier{
+                          $$ = new VarDecl(new Identifier(@3, $3), new ArrayType(@2, $2), $1);
+                    }
+                 |  TypeSpecifier T_Identifier T_Equal Initializer {
+                          $$ = new VarDecl(new Identifier(@2, $2), $1, $4);
+                    }
+                 |  TypeQualifier TypeSpecifier T_Identifier T_Equal Initializer {
+                          $$ = new VarDecl(new Identifier(@3, $3), $2, $1, $5);
+                    }
                  ;
 
-FullySpecifiedType:  TypeSpecifier
-                  |  TypeQualifier TypeSpecifier
-                  ;
 
-TypeQualifier:  SingleTypeQualifier
-             |  TypeQualifier SingleTypeQualifier
+TypeQualifier:  SingleTypeQualifier {$$ = $1;}
              ;
 
-SingleTypeQualifier:  StorageQualifier;
+SingleTypeQualifier:  StorageQualifier {$$=$1;}
+                   ;
 
 StorageQualifier:  T_Const  { $$ = TypeQualifier::constTypeQualifier;}
                    |  T_In  { $$ = TypeQualifier::inTypeQualifier; }
@@ -395,24 +451,29 @@ TypeSpecifierNonArr:  T_Void  {$$ = Type::voidType;}
                    |   T_Uvec4   {$$ = Type::uvec4Type;}
                    ;     
 
-Initializer: AssignmentExpr {};
-
-DeclarationStmt:  Declaration {};
+Initializer: AssignmentExpr {$$=$1;};
 
 Statement:  CompoundStmtScope {$$=$1;}
          |  SimpleStatement {$$=$1;}
          ;
 
-StatementScope:  CompoundStmtNoScope
-              |  SimpleStatement
+StatementScope:  CompoundStmtNoScope {$$ = $1;}
+              |  SimpleStatement {
+                    List<Stmt*> *lst = new List<Stmt*>;
+                    lst->Append($1);
+                    $$ = new StmtBlock(new List<VarDecl*>, lst);
+                 }
               ;
 
-StatementNoScope:  CompoundStmtNoScope
-               |   SimpleStatement
+StatementNoScope:  CompoundStmtNoScope {$$=$1;}
+               |   SimpleStatement {
+                      List<Stmt*> *lst = new List<Stmt*>;
+                      lst->Append($1);
+                      $$ = new StmtBlock(new List<VarDecl*>, lst);
+                   }
                ;
 
-SimpleStatement:  DeclarationStmt {$$ = $1;}
-               |  ExpressionStmt {$$ = $1;}
+SimpleStatement:  ExpressionStmt {$$ = $1;}
                |  SelectionStmt {$$ = $1;}
                |  SwitchStmt {$$ = $1;}
                |  CaseLabel {$$ = $1;}
@@ -420,37 +481,58 @@ SimpleStatement:  DeclarationStmt {$$ = $1;}
                |  JumpStmt {$$ = $1;}
                ;
 
-CompoundStmtScope:  T_LeftBrace T_RightBrace
-                 |  T_LeftBrace StatementList T_RightBrace
+CompoundStmtScope:  T_LeftBrace T_RightBrace {
+                        $$ = new StmtBlock(new List<VarDecl*>, new List<Stmt*>);
+                      }
+                 |  T_LeftBrace StatementList T_RightBrace {
+                        $$ = new StmtBlock(new List<VarDecl*>, $2);
+                      }
                  ;
 
-CompoundStmtNoScope: T_LeftBrace T_RightBrace
-                   |  T_LeftBrace StatementList T_RightBrace
+CompoundStmtNoScope: T_LeftBrace T_RightBrace {
+                          $$ = new StmtBlock(new List<VarDecl*>, new List<Stmt*>);
+                      }
+                   |  T_LeftBrace StatementList T_RightBrace  {
+                          $$ = new StmtBlock(new List<VarDecl*>, $2);
+                      }
                    ;
 
-StatementList:  Statement
-             |  StatementList Statement
+StatementList:  Statement  {
+
+                    ($$ = new List<Stmt*>)->Append($1);;
+                }
+             |  StatementList Statement  {
+                    ($$ = $1)->Append($2);
+                }
              ; 
 
 ExpressionStmt:  T_Semicolon {$$ = new EmptyExpr();}
               |  Expression T_Semicolon {$$ =$1;}
               ;
 
-SelectionStmt:  T_If T_LeftParen Expression T_RightParen SelectionRestStmt;
-
-SelectionRestStmt:  StatementScope T_Else StatementScope
-                 |  StatementScope
-                 ;
+SelectionStmt:  T_If T_LeftParen Expression T_RightParen StatementScope T_Else StatementScope{
+                  $$ = new IfStmt($3, $5, $7);
+                }
+             |  T_If T_LeftParen Expression T_RightParen StatementScope {
+                  $$ = new IfStmt($3, $5, NULL);
+                }
+             ;
 
 Condition:  Expression {$$ = $1;}
-         |  FullySpecifiedType T_Identifier T_Equal Initializer
+         |  TypeSpecifier T_Identifier T_Equal Initializer
+         |  TypeQualifier TypeSpecifier T_Identifier T_Equal Initializer
          ;
 
-SwitchStmt:  T_Switch T_LeftParen Expression T_RightParen T_LeftBrace SwitchStmtList T_RightBrace;
+SwitchStmt:  T_Switch T_LeftParen Expression T_RightParen T_LeftBrace SwitchStmtList T_RightBrace{
+                
+             }
+          ;
 
 SwitchStmtList: StatementList;
 
-CaseLabel:  T_Case Expression T_Colon
+CaseLabel:  T_Case Expression T_Colon  { 
+                //need to change rules
+            }
          |  T_Default T_Colon
          ;
 
@@ -459,12 +541,16 @@ IterationStmt:  T_While T_LeftParen Condition T_RightParen StatementNoScope
              |  T_For T_LeftParen ForInitStmt ForRestStmt T_RightParen StatementNoScope
              ;
 
-ForInitStmt:  ExpressionStmt
+ForInitStmt:  ExpressionStmt {
+                $$ = $1;
+              }
            ;
 
-ConditionOpt: Condition;
+ConditionOpt: Condition {$$ = $1;};
 
-ForRestStmt:  ConditionOpt T_Semicolon
+ForRestStmt:  ConditionOpt T_Semicolon {
+
+              }
            |  ConditionOpt T_Semicolon Expression
            ;
 
@@ -474,7 +560,10 @@ JumpStmt:  T_Break T_Semicolon {$$ = new BreakStmt(@1);}
         ;
 
 
-FunctionDef:  FunctionProto CompoundStmtNoScope;
+FunctionDef:  FunctionProto CompoundStmtNoScope  {
+                ($$=$1)->SetFunctionBody($2);
+              }
+           ;
 
 %%
 

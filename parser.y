@@ -286,8 +286,8 @@ FunctionCallHeader: T_Identifier T_LeftParen {
                   ;
 
 UnaryExpr:    PostFixExpr { $$ = $1; }
-          |   T_Inc UnaryExpr { $$ = new ArithmeticExpr(NULL, new Operator(@1,"++"),$2); }
-          |   T_Dec UnaryExpr { $$ = new ArithmeticExpr(NULL, new Operator(@1,"--"),$2); }
+          |   T_Inc UnaryExpr { $$ = new ArithmeticExpr(new Operator(@1,"++"),$2); }
+          |   T_Dec UnaryExpr { $$ = new ArithmeticExpr(new Operator(@1,"--"),$2); }
           |   T_Plus UnaryExpr  { $$ = new ArithmeticExpr(new IntConstant(@1, 1), new Operator(@1, "*"), $2); }
           |   T_Dash UnaryExpr  { $$ = new ArithmeticExpr(new IntConstant(@1, -1), new Operator(@1, "*"), $2); }
           ;

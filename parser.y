@@ -76,6 +76,7 @@ void yyerror(const char *msg); // standard error-handling routine
     Default *d;
     Case *c;
     SwitchStmt *switchStmt;
+    List<VarDecl*> *varDeclList;
 
     struct
     {
@@ -133,7 +134,8 @@ void yyerror(const char *msg); // standard error-handling routine
  * of the union named "declList" which is of type List<Decl*>.
  * pp2: You'll need to add many of these of your own.
  */
-%type <declList>  DeclList
+%type <declList>  DeclList 
+%type <varDeclList> VarDeclList
 %type <decl>      Decl
 %type <decl>      Declaration
 
@@ -153,8 +155,8 @@ void yyerror(const char *msg); // standard error-handling routine
 
 %type <fnDecl>    FunctionDef FunctionProto 
 
-%type <decl>      SingleDeclaration InitDeclaratorList
-%type <varDecl>   ParamDecl ParamDeclarator 
+%type <decl>       InitDeclaratorList
+%type <varDecl>   ParamDecl ParamDeclarator SingleDeclaration
 %type <type>      TypeSpecifier ArrSpecifier TypeSpecifierNonArr
 
 %type <typeQualifier> TypeQualifier SingleTypeQualifier StorageQualifier 
@@ -420,6 +422,9 @@ SingleDeclaration:  TypeSpecifier T_Identifier {
                     }
                  ;
 
+VarDeclList:  SingleDeclaration { ($$ = new List<VarDecl*>) -> Append($1);}
+           |  VarDeclList SingleDeclaration { ($$ = $1)->Append($2); }
+           ;
 
 TypeQualifier:  SingleTypeQualifier {$$ = $1;}
              ;
@@ -493,18 +498,30 @@ SimpleStatement:  ExpressionStmt {$$ = $1;}
 CompoundStmtScope:  T_LeftBrace T_RightBrace {
                         $$ = new StmtBlock(new List<VarDecl*>, new List<Stmt*>);
                       }
+                 |  T_LeftBrace VarDeclList StatementList T_RightBrace {
+                        $$ = new StmtBlock($2, $3);
+                      }
                  |  T_LeftBrace StatementList T_RightBrace {
                         $$ = new StmtBlock(new List<VarDecl*>, $2);
+                      }
+                 |  T_LeftBrace VarDeclList T_RightBrace {
+                        $$ = new StmtBlock($2, new List<Stmt*>);
                       }
                  ;
 
 CompoundStmtNoScope: T_LeftBrace T_RightBrace {
-                          $$ = new StmtBlock(new List<VarDecl*>, new List<Stmt*>);
+                        $$ = new StmtBlock(new List<VarDecl*>, new List<Stmt*>);
                       }
-                   |  T_LeftBrace StatementList T_RightBrace  {
-                          $$ = new StmtBlock(new List<VarDecl*>, $2);
+                 |  T_LeftBrace VarDeclList StatementList T_RightBrace {
+                        $$ = new StmtBlock($2, $3);
                       }
-                   ;
+                 |  T_LeftBrace StatementList T_RightBrace {
+                        $$ = new StmtBlock(new List<VarDecl*>, $2);
+                      }
+                 |  T_LeftBrace VarDeclList T_RightBrace {
+                        $$ = new StmtBlock($2, new List<Stmt*>);
+                      }
+                 ;
 
 StatementList:  Statement  {
 

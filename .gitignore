@@ -1,5 +1,6 @@
 lex.yy.c
 *.o
+*.out
 glc
 y.output
 y.tab.c

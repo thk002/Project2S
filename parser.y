@@ -167,8 +167,8 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <expr> Condition ConditionOpt
 %type <switchStmt> SwitchStmt
 %type <c> CaseLabel
-%type <stmt> IterationStmt ForInitStmt ForRestStmt JumpStmt
-
+%type <stmt> IterationStmt JumpStmt
+%type <expr> ForInitStmt
 
 %type<op>         UnaryOp AssignmentOp
 
@@ -321,7 +321,7 @@ ConditionalExpr: LogicalOrExpr {$$ = $1;}
 	;
 
 AssignmentExpr:  ConditionalExpr {$$ = $1;}
-              |  UnaryExpr AssignmentOp AssignmentExpr {$$ = new AssignExpr($1, new Operator(@2, "="), $3);}
+              |  UnaryExpr AssignmentOp AssignmentExpr {$$ = new AssignExpr($1, $2, $3);}
               ;
 
 AssignmentOp:  T_Equal  {$$ = new Operator(@1, "=");}
@@ -519,8 +519,6 @@ SelectionStmt:  T_If T_LeftParen Expression T_RightParen StatementScope T_Else S
              ;
 
 Condition:  Expression {$$ = $1;}
-         |  TypeSpecifier T_Identifier T_Equal Initializer
-         |  TypeQualifier TypeSpecifier T_Identifier T_Equal Initializer
          ;
 
 SwitchStmt:  T_Switch T_LeftParen Expression T_RightParen T_LeftBrace SwitchStmtList T_RightBrace{
@@ -536,9 +534,18 @@ CaseLabel:  T_Case Expression T_Colon  {
          |  T_Default T_Colon
          ;
 
-IterationStmt:  T_While T_LeftParen Condition T_RightParen StatementNoScope
-             |  T_Do StatementScope T_While T_LeftParen Expression T_RightParen T_Semicolon
-             |  T_For T_LeftParen ForInitStmt ForRestStmt T_RightParen StatementNoScope
+IterationStmt:  T_While T_LeftParen Condition T_RightParen StatementNoScope  {
+			$$ = new WhileStmt($3, $5);
+		}
+             |  T_Do StatementScope T_While T_LeftParen Expression T_RightParen T_Semicolon  {
+			$$ = new DoWhileStmt($2, $5);
+		}
+             |  T_For T_LeftParen ForInitStmt ConditionOpt T_Semicolon T_RightParen StatementNoScope  {
+			$$ = new ForStmt($3, $4, new EmptyExpr(), $7);
+		}	
+	     |   T_For T_LeftParen ForInitStmt ConditionOpt T_Semicolon Expression T_RightParen StatementNoScope  {
+			$$ = new ForStmt($3, $4, $6, $8);
+		}	
              ;
 
 ForInitStmt:  ExpressionStmt {
@@ -548,11 +555,6 @@ ForInitStmt:  ExpressionStmt {
 
 ConditionOpt: Condition {$$ = $1;};
 
-ForRestStmt:  ConditionOpt T_Semicolon {
-
-              }
-           |  ConditionOpt T_Semicolon Expression
-           ;
 
 JumpStmt:  T_Break T_Semicolon {$$ = new BreakStmt(@1);}
         |  T_Return T_Semicolon {$$ = new ReturnStmt(@1, new EmptyExpr());}

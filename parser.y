@@ -335,7 +335,7 @@ ConditionalExpr: LogicalOrExpr {$$ = $1;}
 	;
 
 AssignmentExpr:  ConditionalExpr {$$ = $1;}
-              |  UnaryExpr AssignmentOp AssignmentExpr {$$ = new AssignExpr($1, new Operator(@2,"="), $3);}
+              |  UnaryExpr AssignmentOp AssignmentExpr {$$ = new AssignExpr($1, $2, $3);}
               ;
 
 AssignmentOp:  T_Equal  {$$ = new Operator(@1, "=");}

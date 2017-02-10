@@ -1,0 +1,13 @@
+For this project, we expanded on the parser.y file to handle the syntax analysis phase of the compiler.
+
+This time, we used bison to create the parser for our compiler to be. 
+
+Our main strategy was to tackle each thing in order, starting from the easiest and working our way to the hardest part.
+
+We first checked what we needed to do for the project by reading through the entire PA2 file provided by the class. After that, we looked over Chapter 10 of the GLSL text. We copied over the rules provided by the GLSL text to our parser.y file excluding certain rules that would be excluded for this particular compiler.
+
+After we made sure the rules were correctly ordered, we started adding in the actions for each rule one by one starting with the much more simpler ones like the ones for the AssignmentOp. As we started adding in the rules, we declared which fields were appropriate for the non-terminals: we tried to be as specific as we could be for these (%type ifStmt, %type varDecl, etc). 
+
+After we added in the rules and fields, we added in the precedences of certain operations such as T_Plus and T_Dash so we could avoid any further conflicts.
+
+After that, we compiled the file and tried to test it using numerous test files that were given to us (as well as making a few of our own). If we had any shift/reduce errors, we went looked at the y.output file and tracked which state was causing the error so we could fix it. 

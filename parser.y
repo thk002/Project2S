@@ -179,6 +179,17 @@ void yyerror(const char *msg); // standard error-handling routine
 %type<fncallandparams>  FunctionCallHeaderParam
 %type<fndeclandparams>  FunctionHeaderParam FunctionHeader FunctionDeclarator
 
+%nonassoc	T_Equal
+%left		T_Or T_And
+%nonassoc	T_EQ T_NE
+%nonassoc	T_LeftAngle T_LessEqual T_RightAngle T_GreaterEqual
+%left		T_Plus T_Dash
+%left		T_Star T_Slash
+%nonassoc	T_Inc T_Dec
+%nonassoc	T_Dot
+%nonassoc	T_LeftBracket T_RightBrace
+%nonassoc	T_Else
+
 
 %%
 /* Rules
@@ -324,7 +335,7 @@ ConditionalExpr: LogicalOrExpr {$$ = $1;}
 	;
 
 AssignmentExpr:  ConditionalExpr {$$ = $1;}
-              |  UnaryExpr AssignmentOp AssignmentExpr {$$ = new AssignExpr($1, $2, $3);}
+              |  UnaryExpr AssignmentOp AssignmentExpr {$$ = new AssignExpr($1, new Operator(@2,"="), $3);}
               ;
 
 AssignmentOp:  T_Equal  {$$ = new Operator(@1, "=");}
@@ -340,10 +351,6 @@ ConstExpr: ConditionalExpr {$$ = $1;};
 
 Declaration:  FunctionProto T_Semicolon {$$=$1;}
            |  InitDeclaratorList T_Semicolon {$$=$1;}
-           |  TypeQualifier TypeSpecifier T_Identifier T_Semicolon 
-              { Identifier * id = new Identifier(@3, $3);
-                $$ = new VarDecl(id, $2, $1);
-              }
            ;
 
 FunctionProto:  FunctionDeclarator T_RightParen {

@@ -1,0 +1,6 @@
+
+*** Error line 4.
+  int y = x;
+  ^^^
+*** syntax error
+

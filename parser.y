@@ -175,7 +175,7 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <stmt> IterationStmt JumpStmt
 %type <expr> ForInitStmt
 
-%type<op>         UnaryOp AssignmentOp
+%type<op>         AssignmentOp
 
 //struct types
 %type<fncallandparams>  FunctionCallHeaderParam
@@ -288,12 +288,10 @@ FunctionCallHeader: T_Identifier T_LeftParen {
 UnaryExpr:    PostFixExpr { $$ = $1; }
           |   T_Inc UnaryExpr { $$ = new ArithmeticExpr(NULL, new Operator(@1,"++"),$2); }
           |   T_Dec UnaryExpr { $$ = new ArithmeticExpr(NULL, new Operator(@1,"--"),$2); }
-          |   UnaryOp UnaryExpr  { $$ = new ArithmeticExpr(NULL, $1, $2); }
+          |   T_Plus UnaryExpr  { $$ = new ArithmeticExpr(new IntConstant(@1, 1), new Operator(@1, "*"), $2); }
+          |   T_Dash UnaryExpr  { $$ = new ArithmeticExpr(new IntConstant(@1, -1), new Operator(@1, "*"), $2); }
           ;
 
-UnaryOp:      T_Plus  {$$ = new Operator(@1, "+");}
-          |   T_Dash  {$$ = new Operator(@1, "-");}
-          ;
 
 MultiExpr:    UnaryExpr  {$$ = $1;}
           |   MultiExpr T_Star UnaryExpr { $$ = new ArithmeticExpr($1, new Operator(@2, "*"), $3);}
@@ -597,11 +595,11 @@ IterationStmt:  T_While T_LeftParen Condition T_RightParen StatementNoScope  {
              |  T_Do StatementScope T_While T_LeftParen Expression T_RightParen T_Semicolon  {
 			$$ = new DoWhileStmt($2, $5);
 		}
-             |  T_For T_LeftParen ForInitStmt ConditionOpt T_Semicolon T_RightParen StatementNoScope  {
-			$$ = new ForStmt($3, $4, new EmptyExpr(), $7);
+             |  T_For T_LeftParen ForInitStmt ConditionOpt T_RightParen StatementNoScope  {
+			$$ = new ForStmt($3, $4, new EmptyExpr(), $6);
 		}	
-	     |   T_For T_LeftParen ForInitStmt ConditionOpt T_Semicolon Expression T_RightParen StatementNoScope  {
-			$$ = new ForStmt($3, $4, $6, $8);
+	     |   T_For T_LeftParen ForInitStmt ConditionOpt Expression T_RightParen StatementNoScope  {
+			$$ = new ForStmt($3, $4, $5, $7);
 		}	
              ;
 
@@ -610,7 +608,9 @@ ForInitStmt:  ExpressionStmt {
               }
            ;
 
-ConditionOpt: Condition {$$ = $1;};
+ConditionOpt: Condition T_Semicolon {$$ = $1;}
+            | T_Semicolon { $$ = new EmptyExpr(); }
+            ;
 
 
 JumpStmt:  T_Break T_Semicolon {$$ = new BreakStmt(@1);}

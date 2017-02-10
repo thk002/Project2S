@@ -1,5 +1,5 @@
 int main(int x) {
-    int x = -1; 
+    int x = -1;
     int x[10];
     (x+x) = vec4(0.55);
     1 < 2 ? 1 : 2 = x;
@@ -7,7 +7,7 @@ int main(int x) {
         break;
         for(;;i) {}
         do {
-            int i = -3 + +4 * -+-+-+fff;
+            int i = 3 + +4 * -+-+-+fff;
         } while (g || y <= asdf);
     } else {
         switch (x = 0) {

@@ -72,8 +72,9 @@ void yyerror(const char *msg); // standard error-handling routine
     BreakStmt *breakStmt;
     ReturnStmt *returnStmt;
     SwitchLabel *switchLabel;
-    Case *c;
+    List<Case*> * caseList;
     Default *d;
+    Case *c;
     SwitchStmt *switchStmt;
 
     struct
@@ -161,12 +162,14 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <stmt> Statement StatementScope StatementNoScope SimpleStatement CompoundStmtScope CompoundStmtNoScope 
 
 %type <stmtList> StatementList
+%type <caseList> CaseList
 
 %type <expr> ExpressionStmt
 %type <ifStmt> SelectionStmt
 %type <expr> Condition ConditionOpt
-%type <switchStmt> SwitchStmt
-%type <c> CaseLabel
+%type <stmt> SwitchStmt 
+%type <c> CaseLabel 
+%type <d> DefaultCase
 %type <stmt> IterationStmt JumpStmt
 %type <expr> ForInitStmt
 
@@ -476,7 +479,6 @@ StatementNoScope:  CompoundStmtNoScope {$$=$1;}
 SimpleStatement:  ExpressionStmt {$$ = $1;}
                |  SelectionStmt {$$ = $1;}
                |  SwitchStmt {$$ = $1;}
-               |  CaseLabel {$$ = $1;}
                |  IterationStmt {$$ = $1;}
                |  JumpStmt {$$ = $1;}
                ;
@@ -521,17 +523,26 @@ SelectionStmt:  T_If T_LeftParen Expression T_RightParen StatementScope T_Else S
 Condition:  Expression {$$ = $1;}
          ;
 
-SwitchStmt:  T_Switch T_LeftParen Expression T_RightParen T_LeftBrace SwitchStmtList T_RightBrace{
-                
+SwitchStmt:  T_Switch T_LeftParen Expression T_RightParen T_LeftBrace CaseList DefaultCase T_RightBrace{
+               $$ = new SwitchStmt($3, $6, $7); 
              }
+	  |   T_Switch T_LeftParen Expression T_RightParen T_LeftBrace CaseList T_RightBrace{
+               $$ = new SwitchStmt($3, $6, NULL); 
+             }
+
           ;
 
-SwitchStmtList: StatementList;
+CaseList:  CaseLabel  { ($$ = new List<Case*>)->Append($1); }
+	|  CaseList CaseLabel{ ($$=$1)->Append($2); }
+	;
 
-CaseLabel:  T_Case Expression T_Colon  { 
-                //need to change rules
+DefaultCase:  T_Default T_Colon  { $$ = new Default(new List<Stmt*>); }
+	   |  T_Default T_Colon StatementList { $$ = new Default($3); }
+	   ;
+
+CaseLabel:  T_Case Expression T_Colon StatementList { 
+                $$ = new Case($2, $4);
             }
-         |  T_Default T_Colon
          ;
 
 IterationStmt:  T_While T_LeftParen Condition T_RightParen StatementNoScope  {

@@ -151,7 +151,7 @@ void yyerror(const char *msg); // standard error-handling routine
 
 %type <call>      FunctionCall 
 
-%type <id>        FunctionCallHeaderNoParam FunctionCallHeader
+%type <id>        FunctionCallHeaderNoParam FunctionCallHeader FunctionType
 
 %type <fnDecl>    FunctionDef FunctionProto 
 
@@ -279,6 +279,9 @@ FunctionCallHeaderParam:  FunctionCallHeader AssignmentExpr {
 
 FunctionCallHeader: T_Identifier T_LeftParen { 
                         $$ = new Identifier(@1, $1); 
+                    }
+                  | FunctionType T_LeftParen {
+                        $$ = $1;
                     }
                   ;
 
@@ -422,7 +425,9 @@ SingleDeclaration:  TypeSpecifier T_Identifier {
                     }
                  ;
 
-VarDeclList:  SingleDeclaration { ($$ = new List<VarDecl*>) -> Append($1);}
+VarDeclList:  SingleDeclaration { ($$ = new List<VarDecl*>) -> Append($1); }
+           |  SingleDeclaration T_Semicolon  { ($$ = new List<VarDecl*>) -> Append($1); }
+           |  VarDeclList SingleDeclaration T_Semicolon { ($$ = $1)->Append($2); }
            |  VarDeclList SingleDeclaration { ($$ = $1)->Append($2); }
            ;
 
@@ -465,6 +470,23 @@ TypeSpecifierNonArr:  T_Void  {$$ = Type::voidType;}
                    |   T_Uvec3   {$$ = Type::uvec3Type;}
                    |   T_Uvec4   {$$ = Type::uvec4Type;}
                    ;     
+
+FunctionType       :   T_Mat2            { $$ = new Identifier(@1 ,"mat2"); }
+                   |   T_Mat3            { $$ = new Identifier(@1 ,"mat3"); }
+                   |   T_Mat4            { $$ = new Identifier(@1 ,"mat4"); }
+                   |   T_Vec2            { $$ = new Identifier(@1 ,"vec2"); }
+                   |   T_Vec3            { $$ = new Identifier(@1 ,"vec3"); }
+                   |   T_Vec4            { $$ = new Identifier(@1 ,"vec4"); }
+                   |   T_Ivec2           { $$ = new Identifier(@1 ,"ivec2"); }
+                   |   T_Ivec3           { $$ = new Identifier(@1 ,"ivec3"); }
+                   |   T_Ivec4           { $$ = new Identifier(@1 ,"ivec4"); }
+                   |   T_Bvec2           { $$ = new Identifier(@1 ,"bvec2"); }
+                   |   T_Bvec3           { $$ = new Identifier(@1 ,"bvec3"); }
+                   |   T_Bvec4           { $$ = new Identifier(@1 ,"bvec4"); }
+                   |   T_Uvec2           { $$ = new Identifier(@1 ,"uvec2"); }
+                   |   T_Uvec3           { $$ = new Identifier(@1 ,"uvec3"); }
+                   |   T_Uvec4           { $$ = new Identifier(@1 ,"uvec4"); }
+                   ;
 
 Initializer: AssignmentExpr {$$=$1;};
 
